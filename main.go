@@ -23,6 +23,7 @@ import (
 	"github.com/tylerobara/klioweb/internal/auth"
 	"github.com/tylerobara/klioweb/internal/collector"
 	"github.com/tylerobara/klioweb/internal/notify"
+	"github.com/tylerobara/klioweb/internal/backup"
 	"github.com/tylerobara/klioweb/internal/restore"
 )
 
@@ -103,6 +104,17 @@ func main() {
 		log.Printf("restore tests enabled for namespaces %v", mgr.Namespaces())
 	} else {
 		restore.RegisterDisabled(mux)
+	}
+
+	if os.Getenv("BACKUP_ENABLED") == "true" {
+		if authn == nil {
+			log.Fatal("BACKUP_ENABLED requires OIDC login to be configured")
+		}
+		bm := backup.New(splitList(os.Getenv("BACKUP_NAMESPACES")), client)
+		bm.Register(mux, authn)
+		log.Printf("manual backups enabled for namespaces %v", bm.Namespaces())
+	} else {
+		backup.RegisterDisabled(mux)
 	}
 
 	mux.HandleFunc("/healthz", func(w http.ResponseWriter, _ *http.Request) { w.Write([]byte("ok")) })

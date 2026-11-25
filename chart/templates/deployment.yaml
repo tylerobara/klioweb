@@ -48,6 +48,10 @@ spec:
             - {name: RESTORE_TIMEOUT, value: {{ .Values.restore.timeout | quote }}}
             - {name: RESTORE_KEEP, value: {{ .Values.restore.keepRuns | quote }}}
             {{- end }}
+            {{- if .Values.backup.enabled }}
+            - {name: BACKUP_ENABLED, value: "true"}
+            - {name: BACKUP_NAMESPACES, value: {{ join "," .Values.backup.namespaces | quote }}}
+            {{- end }}
             {{- if .Values.notifications.enabled }}
             {{- $n := .Values.notifications }}
             - {name: NOTIFY_ON, value: {{ $n.events | quote }}}

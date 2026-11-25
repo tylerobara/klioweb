@@ -1,0 +1,35 @@
+{{- if .Values.backup.enabled }}
+{{- $fullname := include "klioweb.name" . }}
+{{- $sa := include "klioweb.sa" . }}
+{{- $ns := .Release.Namespace }}
+{{- $labels := include "klioweb.labels" . }}
+{{- /* Create-only access to Backup objects in each listed namespace. */ -}}
+{{- range .Values.backup.namespaces }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ $fullname }}-backup
+  namespace: {{ . }}
+  labels: {{- $labels | nindent 4 }}
+rules:
+  - apiGroups: ["postgresql.cnpg.io"]
+    resources: [backups]
+    verbs: [create]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ $fullname }}-backup
+  namespace: {{ . }}
+  labels: {{- $labels | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ $fullname }}-backup
+subjects:
+  - kind: ServiceAccount
+    name: {{ $sa }}
+    namespace: {{ $ns }}
+{{- end }}
+{{- end }}

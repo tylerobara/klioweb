@@ -52,3 +52,11 @@
 {{- fail "restore.enabled requires replicaCount=1 (runs are tracked in-process)" }}
 {{- end }}
 {{- end }}
+{{- if .Values.backup.enabled }}
+{{- if not .Values.oidc.enabled }}
+{{- fail "backup.enabled requires oidc.enabled (starting a backup needs a logged-in user)" }}
+{{- end }}
+{{- if not .Values.backup.namespaces }}
+{{- fail "backup.enabled requires at least one namespace in backup.namespaces" }}
+{{- end }}
+{{- end }}

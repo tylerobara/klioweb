@@ -46,6 +46,7 @@ main{max-width:1280px;margin:0 auto;padding:20px 24px 60px}
 .btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
 #auth{display:flex;align-items:center;gap:10px}
 .btn.sm{padding:2px 9px;font-size:12px}
+.bar{margin:0 0 10px}
 .btn.warn{background:var(--warn-bg);border-color:var(--warn);color:var(--warn);font-weight:600}
 .toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);background:var(--text);color:var(--bg);padding:10px 16px;border-radius:8px;font-size:13px;z-index:20;max-width:90vw;box-shadow:0 4px 18px rgba(0,0,0,.3)}
 .toast.bad{background:var(--crit);color:#fff}
@@ -241,6 +242,7 @@ function clusterCard(c) {
         <div><span class="k">Schedule</span><span class="v"><code>${esc(k.schedule || '—')}</code> ${k.scheduleName ? '(' + esc(k.scheduleName) + ')' : ''}</span></div>
         ${restore.enabled ? `<div><span class="k">Last restore test</span><span class="v">${lr ? runPill(lr) + ' ' + ago(lr.finishedAt || lr.createdAt) + (lr.durationMs ? ' · ' + dur(lr.durationMs) : '') : 'never'}</span></div>` : ''}
       </div>
+      ${backupBar(c)}
       <table><thead><tr><th>Backup</th><th>Phase</th><th>When</th><th>Took</th><th>Begin WAL</th><th>Error</th>${restore.enabled ? '<th>Restore test</th>' : ''}</tr></thead>
       <tbody>${recent || '<tr><td colspan="7">No backups yet</td></tr>'}</tbody></table>
     </div></div>`;
@@ -340,6 +342,7 @@ function paintTabs() {
 }
 
 let me = {enabled: false, authenticated: false};
+let backupCfg = {enabled: false, namespaces: []};
 let restore = {enabled: false, namespaces: [], runs: []}, confirming = null, restoreTimer = null;
 const runStatusClass = st => st === 'passed' ? 'ok' : st === 'failed' ? 'critical' : 'run live';
 const isActive = r => r.status !== 'passed' && r.status !== 'failed';
@@ -352,6 +355,29 @@ function toast(msg, bad) {
   const el = $('#toast');
   el.textContent = msg; el.className = 'toast' + (bad ? ' bad' : ''); el.hidden = false;
   clearTimeout(toast.t); toast.t = setTimeout(() => { el.hidden = true; }, 5000);
+}
+
+function backupBar(c) {
+  if (!me.authenticated || !backupCfg.enabled || !backupCfg.namespaces.includes(c.namespace)) return '';
+  const key = 'backup|' + c.namespace + '|' + c.name, a = `data-ns="${esc(c.namespace)}" data-cluster="${esc(c.name)}"`;
+  const busy = c.klio.runningBackups > 0;
+  const btn = busy ? '<button class="btn sm" disabled>Backup running…</button>'
+    : confirming === key
+      ? `<button class="btn sm warn" ${a} data-backup>Confirm backup?</button> <button class="btn sm" data-cancel>Cancel</button>`
+      : `<button class="btn sm" ${a} data-backup title="Create a manual Klio backup of this cluster now">Back up now</button>`;
+  return `<div class="bar">${btn}</div>`;
+}
+
+async function startBackup(ds) {
+  try {
+    const r = await fetch('api/backups', {method: 'POST',
+      headers: {'Content-Type': 'application/json', 'X-Requested-With': 'klioweb'},
+      body: JSON.stringify({namespace: ds.ns, cluster: ds.cluster})});
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) { toast(r.status === 401 ? 'Your session expired — log in again.' : (j.error || 'Could not start the backup (HTTP ' + r.status + ')'), true); return; }
+    toast('Backup ' + j.name + ' started');
+    await load();
+  } catch (e) { toast('Could not start the backup: ' + e.message, true); }
 }
 
 function verifyCell(c, b) {
@@ -401,6 +427,13 @@ document.addEventListener('click', e => {
   if (e.target.closest('#logout')) {
     fetch('auth/logout', {method: 'POST', headers: {'X-Requested-With': 'klioweb'}}).finally(() => { loadMe(); });
   }
+  const bb = e.target.closest('[data-backup]');
+  if (bb) {
+    const key = 'backup|' + bb.dataset.ns + '|' + bb.dataset.cluster;
+    if (confirming === key) { confirming = null; render(); startBackup(bb.dataset); }
+    else { confirming = key; render(); }
+    return;
+  }
   const vb = e.target.closest('[data-verify]');
   if (vb) {
     const key = [vb.dataset.ns, vb.dataset.cluster, vb.dataset.backup].join('|');
@@ -415,6 +448,7 @@ document.addEventListener('click', e => {
 $('#q').addEventListener('input', render);
 $('#theme').addEventListener('click', toggleTheme);
 paintTheme(); paintTabs();
+fetch('api/backups', {cache: 'no-store'}).then(r => r.json()).then(j => { backupCfg = j; if (data) render(); }).catch(() => {});
 loadMe().then(() => { loadRestore(); }); load(); setInterval(load, 15000);
 </script>
 </body>

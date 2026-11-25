@@ -67,6 +67,13 @@ restore:
   timeout: 30m           # max time to wait for a restore to finish
   keepRuns: 20           # finished results kept per cluster
 
+# Manual backups: a logged-in user can click "Back up now" on a Klio-enabled cluster, which
+# creates a CNPG Backup (method: plugin). Requires oidc.enabled. Write access is granted only
+# through namespaced Roles (create backups) in the namespaces listed here.
+backup:
+  enabled: false
+  namespaces: []         # e.g. [default, media]
+
 service:
   type: ClusterIP
   port: 80
