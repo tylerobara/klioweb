@@ -2,7 +2,10 @@
 
 Read-only web dashboard for monitoring [Klio](https://github.com/cloudnative-pg/klio) backups of CloudNativePG clusters.
 It lists every CNPG cluster, which ones have the Klio plugin enabled, and the health of their backups.
-There is no login; restrict access at the ingress/network layer.
+The dashboard is read-only without login (restrict access at the ingress/network layer); optional OIDC login unlocks restore verification and manual backups.
+The page auto-refreshes every 15s by default (selectable in the header), and logged-in users see the klioWeb version.
+
+Documentation: https://tylerobara.github.io/klioweb/
 
 ## Install
 

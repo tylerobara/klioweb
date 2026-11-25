@@ -30,6 +30,9 @@ import (
 //go:embed web
 var webFS embed.FS
 
+// version is set at build time with -ldflags "-X main.version=...".
+var version = "dev"
+
 func main() {
 	cfg, err := restConfig()
 	if err != nil {
@@ -67,6 +70,7 @@ func main() {
 			log.Fatal(err)
 		}
 		a.Register(mux)
+		a.Version = version
 		authn = a
 		log.Printf("OIDC login enabled (issuer %s)", cfg.IssuerURL)
 	} else {

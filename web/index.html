@@ -58,6 +58,7 @@ details.diag summary{cursor:pointer;color:var(--muted);font-size:12px}
 details.diag pre{margin:6px 0 0;padding:8px 10px;background:var(--panel);border-radius:6px;font:11.5px ui-monospace,Menlo,monospace;white-space:pre-wrap;word-break:break-word;max-height:220px;overflow:auto}
 @keyframes pulse{50%{opacity:.45}}
 .pill.live{animation:pulse 1.4s ease-in-out infinite}
+.sel{border:1px solid var(--line);background:var(--panel2);color:var(--text);border-radius:8px;height:30px;padding:0 6px;font-size:13px}
 .theme{border:1px solid var(--line);background:var(--panel2);color:var(--text);border-radius:8px;width:34px;height:30px;font-size:15px;cursor:pointer;line-height:1}
 .theme:hover{border-color:var(--accent)}
 [hidden]{display:none!important}
@@ -104,6 +105,11 @@ code{font:12px ui-monospace,Menlo,monospace}
   <h1>Klio Backup Dashboard</h1>
   <span class="sp"></span>
   <span class="meta" id="updated">loading…</span>
+  <label class="meta" for="refresh">Refresh</label>
+  <select id="refresh" class="sel" title="Auto-refresh interval">
+    <option value="5">5s</option><option value="15">15s</option><option value="30">30s</option>
+    <option value="60">1m</option><option value="300">5m</option><option value="0">Off</option>
+  </select>
   <span id="auth"></span>
   <button class="theme" id="theme" type="button" aria-label="Toggle dark/light mode" title="Toggle dark/light mode"></button>
 </header>
@@ -396,7 +402,7 @@ function paintAuth() {
   const el = $('#auth');
   if (!me.enabled) { el.innerHTML = ''; return; }
   el.innerHTML = me.authenticated
-    ? `<span class="meta" title="${esc(me.user.email || '')}">${esc(me.user.name)}</span><button class="btn" id="logout" type="button">Log out</button>`
+    ? `${me.version ? `<span class="meta" title="klioweb version">v${esc(String(me.version).replace(/^v/, ''))}</span>` : ''}<span class="meta" title="${esc(me.user.email || '')}">${esc(me.user.name)}</span><button class="btn" id="logout" type="button">Log out</button>`
     : '<a class="btn primary" href="auth/login">Log in</a>';
 }
 async function loadMe() {
@@ -449,7 +455,17 @@ $('#q').addEventListener('input', render);
 $('#theme').addEventListener('click', toggleTheme);
 paintTheme(); paintTabs();
 fetch('api/backups', {cache: 'no-store'}).then(r => r.json()).then(j => { backupCfg = j; if (data) render(); }).catch(() => {});
-loadMe().then(() => { loadRestore(); }); load(); setInterval(load, 15000);
+loadMe().then(() => { loadRestore(); }); load();
+let loadTimer = null, refreshSec = 15;
+try { const v = parseInt(localStorage.getItem('refresh'), 10); if ([0, 5, 15, 30, 60, 300].includes(v)) refreshSec = v; } catch (e) {}
+function schedule() { clearInterval(loadTimer); if (refreshSec > 0) loadTimer = setInterval(load, refreshSec * 1000); }
+$('#refresh').value = String(refreshSec);
+$('#refresh').addEventListener('change', e => {
+  refreshSec = parseInt(e.target.value, 10);
+  try { localStorage.setItem('refresh', refreshSec); } catch (e) {}
+  schedule();
+});
+schedule();
 </script>
 </body>
 </html>

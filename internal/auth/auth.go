@@ -55,6 +55,9 @@ type Auth struct {
 	oauth    *oauth2.Config
 	verifier *oidc.IDTokenVerifier
 	secure   bool
+
+	// Version is reported to logged-in users by /api/me.
+	Version string
 }
 
 // New validates cfg and discovers the provider, retrying briefly so the app
@@ -351,7 +354,7 @@ func (a *Auth) UserName(r *http.Request) (string, bool) {
 func (a *Auth) me(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
 	if u, ok := a.User(r); ok {
-		writeJSON(w, http.StatusOK, map[string]any{"enabled": true, "authenticated": true, "user": u})
+		writeJSON(w, http.StatusOK, map[string]any{"enabled": true, "authenticated": true, "user": u, "version": a.Version})
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"enabled": true, "authenticated": false})
