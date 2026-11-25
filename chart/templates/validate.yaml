@@ -1,0 +1,54 @@
+{{- if and .Values.httpRoute.enabled (not .Values.httpRoute.parentRefs) }}
+{{- fail "httpRoute.enabled requires at least one entry in httpRoute.parentRefs" }}
+{{- end }}
+{{- $n := .Values.notifications }}
+{{- $hasWebhook := or $n.webhook.url $n.webhook.existingSecret }}
+{{- if $n.enabled }}
+{{- if not (has $n.events (list "failure" "success" "both")) }}
+{{- fail "notifications.events must be one of: failure, success, both" }}
+{{- end }}
+{{- if not (or $hasWebhook $n.pushover.enabled) }}
+{{- fail "notifications.enabled requires a webhook (notifications.webhook.url or .existingSecret) and/or notifications.pushover.enabled" }}
+{{- end }}
+{{- end }}
+{{- if and $n.enabled $n.pushover.enabled }}
+{{- if not (or $n.pushover.existingSecret (and $n.pushover.appToken $n.pushover.userKey)) }}
+{{- fail "notifications.pushover requires appToken and userKey, or existingSecret" }}
+{{- end }}
+{{- range $k := list "failurePriority" "successPriority" }}
+{{- $v := int (index $n.pushover $k) }}
+{{- if or (lt $v -2) (gt $v 2) }}
+{{- fail (printf "notifications.pushover.%s must be between -2 and 2" $k) }}
+{{- end }}
+{{- if eq $v 2 }}
+{{- if lt (int $n.pushover.retry) 30 }}{{ fail "notifications.pushover.retry must be >= 30 when a priority is 2" }}{{ end }}
+{{- if or (lt (int $n.pushover.expire) 1) (gt (int $n.pushover.expire) 10800) }}{{ fail "notifications.pushover.expire must be 1..10800 when a priority is 2" }}{{ end }}
+{{- end }}
+{{- end }}
+{{- end }}
+{{- $o := .Values.oidc }}
+{{- if $o.enabled }}
+{{- if not (and $o.issuerUrl $o.externalUrl (or $o.clientId (and $o.existingSecret $o.existingSecretClientIdKey))) }}
+{{- fail "oidc.enabled requires oidc.issuerUrl, oidc.externalUrl and a client ID (oidc.clientId, or oidc.existingSecret with oidc.existingSecretClientIdKey)" }}
+{{- end }}
+{{- if not (or (hasPrefix "https://" $o.externalUrl) (hasPrefix "http://" $o.externalUrl)) }}
+{{- fail "oidc.externalUrl must start with https:// or http://" }}
+{{- end }}
+{{- if not (or $o.clientSecret $o.existingSecret) }}
+{{- fail "oidc.enabled requires oidc.clientSecret or oidc.existingSecret" }}
+{{- end }}
+{{- if and $o.sessionSecret (lt (len $o.sessionSecret) 32) }}
+{{- fail "oidc.sessionSecret must be at least 32 characters" }}
+{{- end }}
+{{- end }}
+{{- if .Values.restore.enabled }}
+{{- if not .Values.oidc.enabled }}
+{{- fail "restore.enabled requires oidc.enabled (starting a restore test needs a logged-in user)" }}
+{{- end }}
+{{- if not .Values.restore.namespaces }}
+{{- fail "restore.enabled requires at least one namespace in restore.namespaces" }}
+{{- end }}
+{{- if ne (int .Values.replicaCount) 1 }}
+{{- fail "restore.enabled requires replicaCount=1 (runs are tracked in-process)" }}
+{{- end }}
+{{- end }}

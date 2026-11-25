@@ -1,0 +1,421 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Klio Backup Dashboard</title>
+<script>try{var t=localStorage.getItem("theme");if(t==="light"||t==="dark")document.documentElement.dataset.theme=t}catch(e){}</script>
+<link rel="icon" href="favicon.ico" sizes="any">
+<style>
+:root{
+  --bg:#f5f6f8; --panel:#fff; --panel2:#f0f2f5; --text:#1b1f27; --muted:#667085; --line:#e3e6eb;
+  --ok:#16a34a; --ok-bg:#dcfce7; --warn:#b45309; --warn-bg:#fef3c7; --crit:#dc2626; --crit-bg:#fee2e2;
+  --none:#64748b; --none-bg:#e8ecf1; --accent:#2563eb; --run:#2563eb;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#0e1116; --panel:#161b22; --panel2:#1d232c; --text:#e6e9ee; --muted:#8b95a5; --line:#262d38;
+  --ok:#4ade80; --ok-bg:#12301e; --warn:#fbbf24; --warn-bg:#3a2d0b; --crit:#f87171; --crit-bg:#3d1618;
+  --none:#94a3b8; --none-bg:#232a35; --accent:#60a5fa; --run:#60a5fa; color-scheme:dark;
+}}
+:root[data-theme="dark"]{
+  --bg:#0e1116; --panel:#161b22; --panel2:#1d232c; --text:#e6e9ee; --muted:#8b95a5; --line:#262d38;
+  --ok:#4ade80; --ok-bg:#12301e; --warn:#fbbf24; --warn-bg:#3a2d0b; --crit:#f87171; --crit-bg:#3d1618;
+  --none:#94a3b8; --none-bg:#232a35; --accent:#60a5fa; --run:#60a5fa; color-scheme:dark;
+}
+:root[data-theme="light"]{color-scheme:light}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:14px/1.45 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+header{display:flex;align-items:center;gap:16px;padding:14px 24px;border-bottom:1px solid var(--line);background:var(--panel);position:sticky;top:0;z-index:5;flex-wrap:wrap}
+h1{font-size:17px;margin:0;font-weight:650}
+h2{font-size:13px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin:28px 0 10px;font-weight:600}
+.sp{flex:1}
+.meta{color:var(--muted);font-size:12px}
+main{max-width:1280px;margin:0 auto;padding:20px 24px 60px}
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px}
+.tile{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px 14px}
+.tile .n{font-size:26px;font-weight:650;line-height:1.1}
+.tile .l{color:var(--muted);font-size:12px;margin-top:2px}
+.tile.ok .n{color:var(--ok)}.tile.warn .n{color:var(--warn)}.tile.crit .n{color:var(--crit)}
+.tabs{display:flex;gap:4px;margin:22px 0 0;border-bottom:1px solid var(--line)}
+.tabs button{border:0;background:none;color:var(--muted);font:inherit;font-weight:600;padding:8px 14px;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px}
+.tabs button.on{color:var(--text);border-bottom-color:var(--accent)}
+.tabs .cnt{display:inline-block;margin-left:6px;padding:0 7px;border-radius:999px;background:var(--panel2);color:var(--muted);font-size:11px;font-weight:600}
+.tabs .cnt.bad{background:var(--crit-bg);color:var(--crit)}
+.btn{border:1px solid var(--line);background:var(--panel2);color:var(--text);border-radius:8px;padding:5px 12px;font:inherit;cursor:pointer;text-decoration:none;display:inline-block}
+.btn:hover{border-color:var(--accent)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+#auth{display:flex;align-items:center;gap:10px}
+.btn.sm{padding:2px 9px;font-size:12px}
+.btn.warn{background:var(--warn-bg);border-color:var(--warn);color:var(--warn);font-weight:600}
+.toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);background:var(--text);color:var(--bg);padding:10px 16px;border-radius:8px;font-size:13px;z-index:20;max-width:90vw;box-shadow:0 4px 18px rgba(0,0,0,.3)}
+.toast.bad{background:var(--crit);color:#fff}
+.checks{list-style:none;margin:0 0 8px;padding:0}
+.checks li{padding:2px 0;font-size:13px}
+.checks .y{color:var(--ok)}.checks .n{color:var(--crit)}
+details.diag{margin-top:6px}
+details.diag summary{cursor:pointer;color:var(--muted);font-size:12px}
+details.diag pre{margin:6px 0 0;padding:8px 10px;background:var(--panel);border-radius:6px;font:11.5px ui-monospace,Menlo,monospace;white-space:pre-wrap;word-break:break-word;max-height:220px;overflow:auto}
+@keyframes pulse{50%{opacity:.45}}
+.pill.live{animation:pulse 1.4s ease-in-out infinite}
+.theme{border:1px solid var(--line);background:var(--panel2);color:var(--text);border-radius:8px;width:34px;height:30px;font-size:15px;cursor:pointer;line-height:1}
+.theme:hover{border-color:var(--accent)}
+[hidden]{display:none!important}
+.bar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:18px 0 12px}
+.seg{display:flex;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:var(--panel)}
+.seg button{border:0;background:none;color:var(--muted);padding:6px 12px;font:inherit;cursor:pointer}
+.seg button.on{background:var(--accent);color:#fff}
+input[type=search]{background:var(--panel);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:6px 10px;font:inherit;min-width:200px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:10px;margin-bottom:10px;overflow:hidden;border-left:4px solid var(--none)}
+.card.ok{border-left-color:var(--ok)}.card.warning{border-left-color:var(--warn)}.card.critical{border-left-color:var(--crit)}
+.row{display:grid;grid-template-columns:minmax(180px,1.3fr) 110px minmax(130px,1fr) minmax(150px,1fr) minmax(190px,1.3fr) 24px;gap:14px;align-items:center;padding:12px 14px;cursor:pointer}
+.row.plain{grid-template-columns:minmax(180px,1.3fr) 110px minmax(130px,1fr) 1fr;cursor:default}
+.name{font-weight:600}.ns{color:var(--muted);font-size:12px}
+.pill{display:inline-block;padding:2px 9px;border-radius:999px;font-size:12px;font-weight:600;background:var(--none-bg);color:var(--none)}
+.pill.ok{background:var(--ok-bg);color:var(--ok)}.pill.warning{background:var(--warn-bg);color:var(--warn)}.pill.critical{background:var(--crit-bg);color:var(--crit)}
+.pill.run{background:var(--panel2);color:var(--run)}
+.k{color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.04em}
+.v{font-size:13px}
+.strip{display:flex;gap:2px;align-items:flex-end;height:18px}
+.strip i{width:5px;height:100%;border-radius:1px;background:var(--none-bg)}
+.strip i.completed{background:var(--ok)}.strip i.failed{background:var(--crit)}.strip i.running,.strip i.started,.strip i.pending{background:var(--run)}
+.chev{transition:transform .15s;color:var(--muted)}
+.card.open .chev{transform:rotate(90deg)}
+.detail{display:none;border-top:1px solid var(--line);background:var(--panel2);padding:14px 16px}
+.card.open .detail{display:block}
+.reasons{margin:0 0 12px;padding:0;list-style:none}
+.reasons li{padding:6px 10px;border-radius:6px;margin-bottom:4px;background:var(--warn-bg);color:var(--warn);font-size:13px}
+.reasons li.c{background:var(--crit-bg);color:var(--crit)}
+.kv{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:10px 18px;margin-bottom:14px}
+.kv div span{display:block}
+.kv div span.pill{display:inline-block}
+table{width:100%;border-collapse:collapse;font-size:12.5px;background:var(--panel);border-radius:8px;overflow:hidden}
+th,td{text-align:left;padding:6px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+th{color:var(--muted);font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.04em}
+td.err{color:var(--crit);max-width:420px;word-break:break-word}
+code{font:12px ui-monospace,Menlo,monospace}
+.empty{padding:30px;text-align:center;color:var(--muted)}
+.errbar{background:var(--crit-bg);color:var(--crit);padding:8px 24px;display:none}
+@media(max-width:900px){.row,.row.plain{grid-template-columns:1fr 1fr}.chev{display:none}}
+</style>
+</head>
+<body>
+<header>
+  <h1>Klio Backup Dashboard</h1>
+  <span class="sp"></span>
+  <span class="meta" id="updated">loading…</span>
+  <span id="auth"></span>
+  <button class="theme" id="theme" type="button" aria-label="Toggle dark/light mode" title="Toggle dark/light mode"></button>
+</header>
+<div class="errbar" id="err"></div>
+<main>
+  <div class="tiles" id="tiles"></div>
+  <div class="tabs" id="tabs" role="tablist">
+    <button data-tab="clusters" class="on" role="tab">Clusters <span class="cnt" id="cnt-clusters"></span></button>
+    <button data-tab="servers" role="tab">Klio servers <span class="cnt" id="cnt-servers"></span></button>
+    <button data-tab="restore" id="tab-restore" role="tab" hidden>Restore tests <span class="cnt" id="cnt-restore"></span></button>
+  </div>
+  <section id="panel-clusters">
+    <div class="bar">
+      <div class="seg" id="filter">
+        <button data-f="klio" class="on">Klio enabled</button>
+        <button data-f="attention">Needs attention</button>
+        <button data-f="all">All clusters</button>
+        <button data-f="off">No Klio</button>
+      </div>
+      <input type="search" id="q" placeholder="Filter by name or namespace">
+    </div>
+    <div id="clusters"></div>
+  </section>
+  <section id="panel-servers" hidden>
+    <div class="bar"></div>
+    <div id="servers"></div>
+  </section>
+  <section id="panel-restore" hidden>
+    <div class="bar"></div>
+    <div id="restore"></div>
+  </section>
+</main>
+<div class="toast" id="toast" hidden></div>
+<script>
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+let data = null, filter = 'klio', tab = 'clusters', open = new Set();
+try { filter = localStorage.getItem('filter') || 'klio'; } catch (e) {}
+if (location.hash === '#servers') tab = 'servers';
+if (location.hash === '#restore') tab = 'restore';
+
+const sysDark = matchMedia('(prefers-color-scheme: dark)');
+const isDark = () => (document.documentElement.dataset.theme || (sysDark.matches ? 'dark' : 'light')) === 'dark';
+function paintTheme() { $('#theme').textContent = isDark() ? '☀' : '☾'; }
+function toggleTheme() {
+  const next = isDark() ? 'light' : 'dark';
+  document.documentElement.dataset.theme = next;
+  try { localStorage.setItem('theme', next); } catch (e) {}
+  paintTheme();
+}
+sysDark.addEventListener('change', paintTheme);
+
+function ago(t) {
+  if (!t) return '—';
+  const s = Math.max(0, (Date.now() - new Date(t)) / 1000);
+  if (s < 90) return Math.round(s) + 's ago';
+  if (s < 5400) return Math.round(s / 60) + 'm ago';
+  if (s < 172800) return (s / 3600).toFixed(1).replace(/\.0$/, '') + 'h ago';
+  return Math.round(s / 86400) + 'd ago';
+}
+function until(t) {
+  if (!t) return '—';
+  const s = (new Date(t) - Date.now()) / 1000;
+  if (s < 0) return 'overdue';
+  if (s < 5400) return 'in ' + Math.max(1, Math.round(s / 60)) + 'm';
+  return 'in ' + (s / 3600).toFixed(1).replace(/\.0$/, '') + 'h';
+}
+function dur(ms) {
+  if (!ms) return '—';
+  const s = ms / 1000;
+  return s < 90 ? s.toFixed(0) + 's' : (s / 60).toFixed(1) + 'm';
+}
+function every(sec) {
+  if (!sec) return '';
+  if (sec < 5400) return 'every ' + Math.round(sec / 60) + 'm';
+  if (sec < 172800) return 'every ' + +(sec / 3600).toFixed(1) + 'h';
+  return 'every ' + Math.round(sec / 86400) + 'd';
+}
+const label = {ok: 'Healthy', warning: 'Warning', critical: 'Critical'};
+const firstLine = s => String(s || '').split('\n')[0].replace(/^rpc error: code = Unknown desc = /, '');
+
+function tiles(s) {
+  const t = (n, l, c = '') => `<div class="tile ${c}"><div class="n">${n}</div><div class="l">${l}</div></div>`;
+  $('#tiles').innerHTML =
+    t(s.totalClusters, 'CNPG clusters') + t(s.klioEnabled, 'Klio enabled') +
+    t(s.healthy, 'Healthy', 'ok') + t(s.warning, 'Warning', s.warning ? 'warn' : '') +
+    t(s.critical, 'Critical', s.critical ? 'crit' : '') + t(s.servers - s.serversNotReady + '/' + s.servers, 'Klio servers ready', s.serversNotReady ? 'crit' : '');
+}
+
+function strip(h) {
+  return '<div class="strip" title="Last ' + h.length + ' backups, oldest → newest">' + h.map(p => `<i class="${esc(p)}"></i>`).join('') + '</div>';
+}
+
+function clusterCard(c) {
+  const id = c.namespace + '/' + c.name, k = c.klio;
+  const ready = `${c.readyInstances}/${c.instances}`;
+  const phaseBad = c.phase && !/healthy/i.test(c.phase);
+  if (!k) {
+    return `<div class="card"><div class="row plain">
+      <div><div class="name">${esc(c.name)}</div><div class="ns">${esc(c.namespace)}</div></div>
+      <div><span class="pill">No Klio</span></div>
+      <div><div class="k">Cluster</div><div class="v">${esc(c.phase || '—')} · ${ready}</div></div>
+      <div><div class="k">Primary</div><div class="v">${esc(c.primary || '—')}</div></div></div></div>`;
+  }
+  const ls = k.lastSuccess, lb = k.lastBackup;
+  const isOpen = open.has(id);
+  const reasons = k.reasons.length ? '<ul class="reasons">' + k.reasons.map(r => `<li class="${k.health === 'critical' ? 'c' : ''}">${esc(firstLine(r))}</li>`).join('') + '</ul>' : '';
+  const recent = k.recent.map(b => `<tr>
+      <td><code>${esc(b.name)}</code></td>
+      <td><span class="pill ${b.phase === 'completed' ? 'ok' : b.phase === 'failed' ? 'critical' : 'run'}">${esc(b.phase)}</span></td>
+      <td title="${esc(b.created)}">${ago(b.stoppedAt || b.created)}</td><td>${dur(b.durationMs)}</td>
+      <td><code>${esc(b.beginWal || '')}</code></td>
+      <td class="err">${esc(firstLine(b.error))}</td>${restore.enabled ? verifyCell(c, b) : ''}</tr>`).join('');
+  const lr = restore.enabled ? lastRun(c.namespace, c.name) : null;
+  return `<div class="card ${k.health} ${isOpen ? 'open' : ''}" data-id="${esc(id)}">
+    <div class="row" data-toggle>
+      <div><div class="name">${esc(c.name)}</div><div class="ns">${esc(c.namespace)}</div></div>
+      <div><span class="pill ${k.health}">${label[k.health]}</span></div>
+      <div><div class="k">Last success</div><div class="v" title="${esc(ls?.stoppedAt || '')}">${ago(ls?.stoppedAt || ls?.created)}</div>
+        <div class="ns">${lb && lb.phase === 'failed' ? 'latest: failed ' + ago(lb.created) : (ls ? dur(ls.durationMs) + ' duration' : '')}</div></div>
+      <div><div class="k">Schedule</div><div class="v">${esc(every(k.intervalSeconds) || k.schedule || '—')}</div>
+        <div class="ns">next ${until(k.nextSchedule)}${k.suspended ? ' · suspended' : ''}</div></div>
+      <div><div class="k">${k.completedBackups} ok · ${k.failedBackups} failed · ${k.totalBackups} total</div>${strip(k.history)}</div>
+      <div class="chev">▸</div>
+    </div>
+    <div class="detail">
+      ${reasons}
+      <div class="kv">
+        <div><span class="k">Cluster state</span><span class="v" ${phaseBad ? 'style="color:var(--warn)"' : ''}>${esc(c.phase || '—')} · ${ready} ready</span></div>
+        <div><span class="k">Primary</span><span class="v">${esc(c.primary || '—')}</span></div>
+        <div><span class="k">Klio server</span><span class="v">${esc(k.serverAddress || '—')}</span></div>
+        <div><span class="k">Plugin config</span><span class="v">${esc(k.pluginConfig || '—')}${k.configApplied === false ? ' (not applied)' : k.configApplied ? ' ✓' : ''}</span></div>
+        <div><span class="k">Mode</span><span class="v">${esc(k.mode || '—')}</span></div>
+        <div><span class="k">Tier 2 (S3)</span><span class="v">backup ${k.tier2Backup ? 'on' : 'off'} · recovery ${k.tier2Recovery ? 'on' : 'off'}</span></div>
+        <div><span class="k">WAL archiver</span><span class="v">${k.isWALArchiver ? 'yes' : 'no'}</span></div>
+        <div><span class="k">Schedule</span><span class="v"><code>${esc(k.schedule || '—')}</code> ${k.scheduleName ? '(' + esc(k.scheduleName) + ')' : ''}</span></div>
+        ${restore.enabled ? `<div><span class="k">Last restore test</span><span class="v">${lr ? runPill(lr) + ' ' + ago(lr.finishedAt || lr.createdAt) + (lr.durationMs ? ' · ' + dur(lr.durationMs) : '') : 'never'}</span></div>` : ''}
+      </div>
+      <table><thead><tr><th>Backup</th><th>Phase</th><th>When</th><th>Took</th><th>Begin WAL</th><th>Error</th>${restore.enabled ? '<th>Restore test</th>' : ''}</tr></thead>
+      <tbody>${recent || '<tr><td colspan="7">No backups yet</td></tr>'}</tbody></table>
+    </div></div>`;
+}
+
+function serverCard(s) {
+  return `<div class="card ${s.ready ? 'ok' : 'critical'}"><div class="row plain" style="grid-template-columns:minmax(180px,1.2fr) 110px 1fr 1.6fr">
+    <div><div class="name">${esc(s.name)}</div><div class="ns">${esc(s.namespace)}</div></div>
+    <div><span class="pill ${s.ready ? 'ok' : 'critical'}">${s.ready ? 'Ready' : 'Not ready'}</span></div>
+    <div><div class="k">Pods · storage</div><div class="v">${s.podsReady}/${s.pods} · ${esc(s.storage || '—')}</div>
+      <div class="ns">${esc((s.image || '').split('/').pop())} · ${esc(s.mode)}</div></div>
+    <div><div class="k">Tier 2</div><div class="v"><code>${esc(s.tier2 || '—')}</code></div>
+      <div class="ns">serves ${s.clusters.length ? esc(s.clusters.join(', ')) : 'no clusters'}</div></div></div></div>`;
+}
+
+function runCard(r) {
+  const checks = r.checks.length ? '<ul class="checks">' + r.checks.map(c =>
+    `<li><span class="${c.ok ? 'y' : 'n'}">${c.ok ? '✓' : '✗'}</span> ${esc(c.name)}${c.detail ? ' <span class="ns">— ' + esc(c.detail) + '</span>' : ''}</li>`).join('') + '</ul>' : '';
+  const err = r.error ? `<ul class="reasons"><li class="c">${esc(r.error)}</li></ul>` : '';
+  const clean = r.cleanupError ? `<ul class="reasons"><li>Cleanup problem: ${esc(r.cleanupError)}. Look for leftover objects labelled klioweb.obara.dev/restore-test in ${esc(r.namespace)}.</li></ul>` : '';
+  const diag = r.diagnostics && r.diagnostics.length ? `<details class="diag"><summary>Diagnostics</summary><pre>${esc(r.diagnostics.join('\n'))}</pre></details>` : '';
+  const body = checks + err + clean + diag;
+  return `<div class="card ${r.status === 'passed' ? 'ok' : r.status === 'failed' ? 'critical' : ''}">
+    <div class="row plain" style="grid-template-columns:minmax(180px,1.2fr) 130px minmax(200px,1.3fr) 90px 1fr">
+      <div><div class="name">${esc(r.cluster)}</div><div class="ns">${esc(r.namespace)}</div></div>
+      <div>${runPill(r)}</div>
+      <div><div class="k">Backup</div><div class="v"><code>${esc(r.backup)}</code></div></div>
+      <div><div class="k">Took</div><div class="v">${isActive(r) ? '…' : dur(r.durationMs)}</div></div>
+      <div><div class="k">Started ${ago(r.createdAt)}</div><div class="v">${esc(r.triggeredBy || '—')}</div></div></div>
+    ${body ? `<div class="detail" style="display:block">${body}</div>` : ''}</div>`;
+}
+
+function renderRestore() {
+  $('#tab-restore').hidden = !restore.enabled;
+  if (!restore.enabled && tab === 'restore') { tab = 'clusters'; }
+  const active = restore.runs.filter(isActive).length;
+  $('#cnt-restore').textContent = active ? active + ' running' : restore.runs.length;
+  $('#restore').innerHTML = restore.runs.length ? restore.runs.map(runCard).join('')
+    : '<div class="empty">No restore tests yet.' + (me.authenticated ? ' Open a cluster and click Verify next to a completed backup.' : ' Log in to run one.') + '</div>';
+}
+
+async function loadRestore() {
+  clearTimeout(restoreTimer);
+  try {
+    const r = await fetch('api/restore-tests', {cache: 'no-store'});
+    if (r.ok) restore = await r.json();
+  } catch (e) {}
+  if (data) render(); else renderRestore();
+  restoreTimer = setTimeout(loadRestore, restore.runs.some(isActive) ? 4000 : 15000);
+}
+
+async function startVerify(ds) {
+  try {
+    const r = await fetch('api/restore-tests', {method: 'POST',
+      headers: {'Content-Type': 'application/json', 'X-Requested-With': 'klioweb'},
+      body: JSON.stringify({namespace: ds.ns, cluster: ds.cluster, backup: ds.backup})});
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) { toast(r.status === 401 ? 'Your session expired — log in again.' : (j.error || 'Could not start the restore test (HTTP ' + r.status + ')'), true); return; }
+    toast('Restore test started for ' + ds.cluster);
+    tab = 'restore'; history.replaceState(null, '', '#restore');
+    await loadRestore();
+  } catch (e) { toast('Could not start the restore test: ' + e.message, true); }
+}
+
+function match(c) {
+  const q = $('#q').value.trim().toLowerCase();
+  if (q && !(c.name + ' ' + c.namespace).toLowerCase().includes(q)) return false;
+  switch (filter) {
+    case 'klio': return !!c.klio;
+    case 'off': return !c.klio;
+    case 'attention': return c.klio && c.klio.health !== 'ok';
+  }
+  return true;
+}
+
+function render() {
+  if (!data) return;
+  tiles(data.summary);
+  const list = data.clusters.filter(match);
+  $('#clusters').innerHTML = list.length ? list.map(clusterCard).join('') : '<div class="empty">Nothing to show for this filter.</div>';
+  renderRestore();
+  $('#servers').innerHTML = data.servers.length ? data.servers.map(serverCard).join('') : '<div class="empty">No Klio servers found.</div>';
+  $('#updated').textContent = 'Updated ' + new Date(data.generatedAt).toLocaleTimeString() + ' · auto-refresh 15s';
+  document.querySelectorAll('#filter button').forEach(b => b.classList.toggle('on', b.dataset.f === filter));
+  $('#cnt-clusters').textContent = data.summary.klioEnabled + '/' + data.summary.totalClusters;
+  const sc = $('#cnt-servers');
+  sc.textContent = data.summary.servers;
+  sc.classList.toggle('bad', data.summary.serversNotReady > 0);
+  paintTabs();
+}
+
+function paintTabs() {
+  document.querySelectorAll('#tabs button').forEach(b => b.classList.toggle('on', b.dataset.tab === tab));
+  $('#panel-clusters').hidden = tab !== 'clusters';
+  $('#panel-servers').hidden = tab !== 'servers';
+  $('#panel-restore').hidden = tab !== 'restore';
+}
+
+let me = {enabled: false, authenticated: false};
+let restore = {enabled: false, namespaces: [], runs: []}, confirming = null, restoreTimer = null;
+const runStatusClass = st => st === 'passed' ? 'ok' : st === 'failed' ? 'critical' : 'run live';
+const isActive = r => r.status !== 'passed' && r.status !== 'failed';
+const runPill = r => `<span class="pill ${runStatusClass(r.status)}">${esc(r.status)}</span>`;
+const runFor = (ns, cl, backup) => restore.runs.find(r => r.namespace === ns && r.cluster === cl && r.backup === backup);
+const lastRun = (ns, cl) => restore.runs.find(r => r.namespace === ns && r.cluster === cl);
+const clusterBusy = (ns, cl) => restore.runs.some(r => r.namespace === ns && r.cluster === cl && isActive(r));
+
+function toast(msg, bad) {
+  const el = $('#toast');
+  el.textContent = msg; el.className = 'toast' + (bad ? ' bad' : ''); el.hidden = false;
+  clearTimeout(toast.t); toast.t = setTimeout(() => { el.hidden = true; }, 5000);
+}
+
+function verifyCell(c, b) {
+  const r = runFor(c.namespace, c.name, b.name);
+  let h = r ? `${runPill(r)} <span class="ns">${ago(r.finishedAt || r.createdAt)}</span> ` : '';
+  const can = me.authenticated && restore.namespaces.includes(c.namespace) && b.phase === 'completed' && !clusterBusy(c.namespace, c.name);
+  if (can) {
+    const key = [c.namespace, c.name, b.name].join('|'), a = `data-ns="${esc(c.namespace)}" data-cluster="${esc(c.name)}" data-backup="${esc(b.name)}"`;
+    h += confirming === key
+      ? `<button class="btn sm warn" ${a} data-verify>Confirm restore?</button> <button class="btn sm" data-cancel>Cancel</button>`
+      : `<button class="btn sm" ${a} data-verify title="Restore this backup into a temporary cluster, check it, then delete it">Verify</button>`;
+  }
+  return `<td>${h}</td>`;
+}
+function paintAuth() {
+  const el = $('#auth');
+  if (!me.enabled) { el.innerHTML = ''; return; }
+  el.innerHTML = me.authenticated
+    ? `<span class="meta" title="${esc(me.user.email || '')}">${esc(me.user.name)}</span><button class="btn" id="logout" type="button">Log out</button>`
+    : '<a class="btn primary" href="auth/login">Log in</a>';
+}
+async function loadMe() {
+  try { me = await (await fetch('api/me', {cache: 'no-store'})).json(); } catch (e) { me = {enabled: false}; }
+  paintAuth();
+  if (data) render();
+}
+
+async function load() {
+  try {
+    const r = await fetch('api/status', {cache: 'no-store'});
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    data = await r.json();
+    $('#err').style.display = 'none';
+    render();
+  } catch (e) {
+    $('#err').textContent = 'Failed to refresh: ' + e.message;
+    $('#err').style.display = 'block';
+  }
+}
+
+document.addEventListener('click', e => {
+  const t = e.target.closest('[data-toggle]');
+  if (t) {
+    const card = t.closest('.card'), id = card.dataset.id;
+    card.classList.toggle('open') ? open.add(id) : open.delete(id);
+  }
+  if (e.target.closest('#logout')) {
+    fetch('auth/logout', {method: 'POST', headers: {'X-Requested-With': 'klioweb'}}).finally(() => { loadMe(); });
+  }
+  const vb = e.target.closest('[data-verify]');
+  if (vb) {
+    const key = [vb.dataset.ns, vb.dataset.cluster, vb.dataset.backup].join('|');
+    if (confirming === key) { confirming = null; render(); startVerify(vb.dataset); }
+    else { confirming = key; render(); }
+  } else if (confirming && !e.target.closest('[data-toggle]')) { confirming = null; render(); }
+  const tb = e.target.closest('#tabs button');
+  if (tb) { tab = tb.dataset.tab; history.replaceState(null, '', tab === 'clusters' ? location.pathname + location.search : '#' + tab); paintTabs(); }
+  const f = e.target.closest('#filter button');
+  if (f) { filter = f.dataset.f; try { localStorage.setItem('filter', filter); } catch (e) {} render(); }
+});
+$('#q').addEventListener('input', render);
+$('#theme').addEventListener('click', toggleTheme);
+paintTheme(); paintTabs();
+loadMe().then(() => { loadRestore(); }); load(); setInterval(load, 15000);
+</script>
+</body>
+</html>

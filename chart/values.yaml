@@ -1,0 +1,102 @@
+image:
+  repository: ghcr.io/tylerobara/klioweb
+  tag: ""            # defaults to .Chart.AppVersion
+  pullPolicy: IfNotPresent
+imagePullSecrets: []
+
+replicaCount: 1
+cacheTTL: 10s        # how long API responses are cached
+
+# Notifications sent when a Klio backup finishes. Webhook and Pushover can be
+# used together. Backups that finished before the pod started are never notified.
+notifications:
+  enabled: false
+  events: failure        # failure | success | both
+  linkUrl: ""            # optional dashboard URL attached to Pushover messages
+
+  # Generic JSON webhook. The payload carries `text` and `content` fields, so
+  # Slack, Mattermost and Discord URLs work as-is. Leave unset to disable.
+  webhook:
+    url: ""              # inline; stored in a Secret created by this chart
+    existingSecret: ""   # alternative: your own Secret (takes precedence over url)
+    existingSecretKey: url
+
+  # Pushover (https://pushover.net/api)
+  pushover:
+    enabled: false
+    appToken: ""         # inline application API token; stored in a chart-managed Secret
+    userKey: ""          # inline user or group key
+    existingSecret: ""   # alternative: Secret holding both values (takes precedence)
+    existingSecretTokenKey: token
+    existingSecretUserKey: user
+    device: ""           # optional device name(s), comma separated; empty = all devices
+    sound: ""            # optional sound name, e.g. siren
+    failurePriority: 1   # -2 (no notification) .. 2 (emergency, repeats until acknowledged)
+    successPriority: -1  # -1 = quiet
+    retry: 60            # priority 2 only: seconds between repeats (min 30)
+    expire: 3600         # priority 2 only: seconds before giving up (max 10800)
+
+# Optional OIDC login. The dashboard stays readable without logging in; logging in
+# (top right) unlocks actions that change things. Register this redirect URI with
+# your identity provider:  <externalUrl>/auth/callback
+oidc:
+  enabled: false
+  issuerUrl: ""          # e.g. https://auth.example.com/application/o/klioweb/
+  clientId: ""           # or read it from existingSecret via existingSecretClientIdKey
+  externalUrl: ""        # public URL of this app, e.g. https://klioweb.example.com
+  clientSecret: ""       # inline; stored in a chart-managed Secret
+  existingSecret: ""     # alternative: your own Secret (takes precedence over clientSecret)
+  existingSecretClientSecretKey: client-secret
+  existingSecretClientIdKey: ""  # optional key in existingSecret holding the client ID (instead of clientId)
+  existingSecretSessionKey: ""   # optional key in existingSecret holding the cookie-signing secret (>= 32 chars)
+  sessionSecret: ""      # inline cookie-signing secret; if empty (and no existing key) one is generated and kept across upgrades
+  sessionTTL: 12h
+  scopes: [openid, profile, email]   # add whatever scope your IdP needs to release groups
+  groupsClaim: groups
+  # Restrict who may log in. Leave both empty to allow any user your IdP authenticates.
+  allowedGroups: []
+  allowedEmails: []
+
+# Restore verification: a logged-in user can click "Verify" on a completed backup. klioweb
+# restores it into a temporary single-instance cluster, runs SQL checks, then deletes it.
+# Requires oidc.enabled. Needs write access, granted only through namespaced Roles in the
+# namespaces listed here. Keep replicaCount at 1 while this is enabled.
+restore:
+  enabled: false
+  namespaces: []         # namespaces whose Klio-backed clusters may be verified, e.g. [default, media]
+  timeout: 30m           # max time to wait for a restore to finish
+  keepRuns: 20           # finished results kept per cluster
+
+service:
+  type: ClusterIP
+  port: 80
+
+ingress:
+  enabled: false
+  className: traefik
+  annotations: {}
+  host: klio.example.com
+  tls: []            # e.g. [{secretName: x, hosts: [klio.example.com]}]
+
+# Gateway API alternative to ingress (needs a Gateway to attach to).
+httpRoute:
+  enabled: false
+  annotations: {}
+  hostnames: [klio.example.com]
+  parentRefs: []     # e.g. [{name: my-gateway, namespace: gateway-system, sectionName: https}]
+
+rbac:
+  create: true       # cluster-wide read-only access to CNPG/Klio resources and pods
+
+serviceAccount:
+  create: true
+  name: ""
+
+resources:
+  requests: {cpu: 20m, memory: 32Mi}
+  limits: {memory: 128Mi}
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
+podAnnotations: {}

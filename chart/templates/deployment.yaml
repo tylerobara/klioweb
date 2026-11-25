@@ -1,0 +1,149 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "klioweb.name" . }}
+  namespace: {{ .Release.Namespace }}
+  labels: {{- include "klioweb.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels: {{- include "klioweb.selector" . | nindent 6 }}
+  template:
+    metadata:
+      labels: {{- include "klioweb.selector" . | nindent 8 }}
+      {{- $ann := .Values.podAnnotations }}
+      {{- if and .Values.notifications.enabled .Values.notifications.webhook.url (not .Values.notifications.webhook.existingSecret) }}
+      {{- $ann = merge (dict "checksum/webhook" (include (print $.Template.BasePath "/webhook-secret.yaml") . | sha256sum)) $ann }}
+      {{- end }}
+      {{- if and .Values.notifications.enabled .Values.notifications.pushover.enabled (not .Values.notifications.pushover.existingSecret) }}
+      {{- $ann = merge (dict "checksum/pushover" (include (print $.Template.BasePath "/pushover-secret.yaml") . | sha256sum)) $ann }}
+      {{- end }}
+      {{- if .Values.oidc.enabled }}
+      {{- $ann = merge (dict "checksum/oidc" (print .Values.oidc.clientSecret .Values.oidc.sessionSecret | sha256sum)) $ann }}
+      {{- end }}
+      {{- with $ann }}
+      annotations: {{- toYaml . | nindent 8 }}
+      {{- end }}
+    spec:
+      serviceAccountName: {{ include "klioweb.sa" . }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets: {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        seccompProfile: {type: RuntimeDefault}
+      containers:
+        - name: klioweb
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          env:
+            - {name: CACHE_TTL, value: {{ .Values.cacheTTL | quote }}}
+            - name: POD_NAMESPACE
+              valueFrom: {fieldRef: {fieldPath: metadata.namespace}}
+            {{- if .Values.restore.enabled }}
+            - {name: RESTORE_ENABLED, value: "true"}
+            - {name: RESTORE_NAMESPACES, value: {{ join "," .Values.restore.namespaces | quote }}}
+            - {name: RESTORE_TIMEOUT, value: {{ .Values.restore.timeout | quote }}}
+            - {name: RESTORE_KEEP, value: {{ .Values.restore.keepRuns | quote }}}
+            {{- end }}
+            {{- if .Values.notifications.enabled }}
+            {{- $n := .Values.notifications }}
+            - {name: NOTIFY_ON, value: {{ $n.events | quote }}}
+            {{- if $n.linkUrl }}
+            - {name: NOTIFY_LINK_URL, value: {{ $n.linkUrl | quote }}}
+            {{- end }}
+            {{- if or $n.webhook.url $n.webhook.existingSecret }}
+            - name: NOTIFY_WEBHOOK_URL
+              valueFrom:
+                secretKeyRef:
+                  {{- if $n.webhook.existingSecret }}
+                  name: {{ $n.webhook.existingSecret }}
+                  key: {{ $n.webhook.existingSecretKey }}
+                  {{- else }}
+                  name: {{ include "klioweb.name" . }}-webhook
+                  key: url
+                  {{- end }}
+            {{- end }}
+            {{- if $n.pushover.enabled }}
+            {{- $po := $n.pushover }}
+            {{- $poSecret := default (printf "%s-pushover" (include "klioweb.name" .)) $po.existingSecret }}
+            - name: PUSHOVER_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $poSecret }}
+                  key: {{ if $po.existingSecret }}{{ $po.existingSecretTokenKey }}{{ else }}token{{ end }}
+            - name: PUSHOVER_USER
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $poSecret }}
+                  key: {{ if $po.existingSecret }}{{ $po.existingSecretUserKey }}{{ else }}user{{ end }}
+            - {name: PUSHOVER_PRIORITY_FAILURE, value: {{ $po.failurePriority | quote }}}
+            - {name: PUSHOVER_PRIORITY_SUCCESS, value: {{ $po.successPriority | quote }}}
+            - {name: PUSHOVER_RETRY, value: {{ $po.retry | quote }}}
+            - {name: PUSHOVER_EXPIRE, value: {{ $po.expire | quote }}}
+            {{- if $po.device }}
+            - {name: PUSHOVER_DEVICE, value: {{ $po.device | quote }}}
+            {{- end }}
+            {{- if $po.sound }}
+            - {name: PUSHOVER_SOUND, value: {{ $po.sound | quote }}}
+            {{- end }}
+            {{- end }}
+            {{- end }}
+            {{- if .Values.oidc.enabled }}
+            {{- $o := .Values.oidc }}
+            {{- $oidcSecret := printf "%s-oidc-config" (include "klioweb.name" .) }}
+            - {name: OIDC_ISSUER_URL, value: {{ $o.issuerUrl | quote }}}
+            {{- if and $o.existingSecret $o.existingSecretClientIdKey }}
+            - name: OIDC_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $o.existingSecret }}
+                  key: {{ $o.existingSecretClientIdKey }}
+            {{- else }}
+            - {name: OIDC_CLIENT_ID, value: {{ $o.clientId | quote }}}
+            {{- end }}
+            - {name: OIDC_EXTERNAL_URL, value: {{ $o.externalUrl | quote }}}
+            - {name: OIDC_SCOPES, value: {{ join "," $o.scopes | quote }}}
+            - {name: OIDC_GROUPS_CLAIM, value: {{ $o.groupsClaim | quote }}}
+            - {name: OIDC_ALLOWED_GROUPS, value: {{ join "," $o.allowedGroups | quote }}}
+            - {name: OIDC_ALLOWED_EMAILS, value: {{ join "," $o.allowedEmails | quote }}}
+            - {name: OIDC_SESSION_TTL, value: {{ $o.sessionTTL | quote }}}
+            - name: OIDC_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ default $oidcSecret $o.existingSecret }}
+                  key: {{ if $o.existingSecret }}{{ $o.existingSecretClientSecretKey }}{{ else }}client-secret{{ end }}
+            - name: OIDC_SESSION_SECRET
+              valueFrom:
+                secretKeyRef:
+                  {{- if and $o.existingSecret $o.existingSecretSessionKey }}
+                  name: {{ $o.existingSecret }}
+                  key: {{ $o.existingSecretSessionKey }}
+                  {{- else }}
+                  name: {{ $oidcSecret }}
+                  key: session-secret
+                  {{- end }}
+            {{- end }}
+          ports:
+            - {name: http, containerPort: 8080}
+          readinessProbe:
+            httpGet: {path: /healthz, port: http}
+          livenessProbe:
+            httpGet: {path: /healthz, port: http}
+            initialDelaySeconds: 10
+          resources: {{- toYaml .Values.resources | nindent 12 }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: [ALL]}
+      {{- with .Values.nodeSelector }}
+      nodeSelector: {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations: {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity: {{- toYaml . | nindent 8 }}
+      {{- end }}
